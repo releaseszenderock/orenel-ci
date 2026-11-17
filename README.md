@@ -23,12 +23,13 @@ Third-party actions are pinned to commit SHAs because the checkout step receives
 | --- | --- | --- | --- |
 | `platform-infra.yml` | manual (`workflow_dispatch`, input `ref`) | `infra/scripts/verify.sh` (compose rendering, required-secret guards, no published ports, `otelcol-contrib validate`, redaction fixture) and `infra/scripts/smoke.sh` (full stack with apps: migrate, api readiness and contract, web SSR) | `orenel-ci/infra` |
 | `platform-go.yml` | manual (`workflow_dispatch`, input `ref`) | gofmt, go vet, generated code up to date (`go generate`, `sqlc diff`), `go test -race` with integration tests required, api and worker image builds | `orenel-ci/go` |
-| `platform-web.yml` | manual (`workflow_dispatch`, input `ref`) | frozen install, root scripts `lint`, `typecheck`, `test`, OpenAPI lint and client regeneration (`api:lint`, `api:generate` if defined), `build`, Playwright `test:e2e`, web image build | `orenel-ci/web` |
+| `platform-web.yml` | manual (`workflow_dispatch`, input `ref`) | frozen install, root scripts `lint`, `typecheck`, `test`, OpenAPI lint and client regeneration (`api:lint`, `api:generate` if defined), `build`, dev gallery excluded from the production build (`check:gallery-excluded` if defined), Playwright `test:e2e`, web image build | `orenel-ci/web` |
+| `platform-real-stack.yml` | manual (`workflow_dispatch`, input `ref`) | real API and worker (`-tags devstack`, fake providers only) against throwaway PostgreSQL and Redis containers with passwords generated per run, then Playwright `test:e2e:real` at 390 and 1440 px; on failure, a jq-whitelisted tail of api/worker logs | `orenel-ci/real-stack` |
 
 Run it from the Actions tab, or with the GitHub CLI:
 
 ```bash
-for wf in platform-infra platform-go platform-web; do
+for wf in platform-infra platform-go platform-web platform-real-stack; do
   gh workflow run "$wf.yml" -R releaseszenderock/orenel-ci -f ref=<branch-or-sha>
 done
 ```

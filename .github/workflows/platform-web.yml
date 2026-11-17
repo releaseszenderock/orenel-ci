@@ -116,6 +116,12 @@ jobs:
         working-directory: platform
         run: pnpm run build
 
+      # The dev-only component gallery must never reach a production build.
+      - name: Dev gallery excluded from the production build
+        working-directory: platform/apps/web
+        run: |
+          if node -e 'process.exit(require("./package.json").scripts?.["check:gallery-excluded"] ? 0 : 1)'; then pnpm run check:gallery-excluded; else echo "no gallery check in this revision"; fi
+
       - name: Playwright browsers
         working-directory: platform/apps/web
         run: pnpm exec playwright install --with-deps chromium
