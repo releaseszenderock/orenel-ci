@@ -25,9 +25,12 @@ env:
   STATUS_CONTEXT: orenel-ci/go
 
 jobs:
-  go:
+  # Resolves the ref and posts "pending". Runs no platform code.
+  resolve:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 5
+    outputs:
+      sha: ${{ steps.commit.outputs.sha }}
     steps:
       - name: Require the platform token
         env:
@@ -38,18 +41,14 @@ jobs:
             exit 1
           fi
 
-      - name: Check out orenel-platform
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
-        with:
-          repository: zenderock/orenel-platform
-          ref: ${{ inputs.ref }}
-          token: ${{ secrets.ORENEL_PLATFORM_TOKEN }}
-          persist-credentials: false
-          path: platform
-
       - name: Resolve commit
         id: commit
-        run: echo "sha=$(git -C platform rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ secrets.ORENEL_PLATFORM_TOKEN }}
+          REF: ${{ inputs.ref }}
+        run: |
+          sha="$(gh api "repos/$PLATFORM_REPO/commits/$REF" --jq .sha)"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
 
       - name: Report pending status to orenel-platform
         env:
@@ -60,6 +59,22 @@ jobs:
           gh api --silent "repos/$PLATFORM_REPO/statuses/$SHA" \
             -f state=pending -f context="$STATUS_CONTEXT" \
             -f description="Go checks running" -f target_url="$RUN_URL"
+
+  # Runs platform code (dependencies, tests, builds). The token is only used
+  # by the checkout step, before any platform code runs, and not persisted.
+  go:
+    needs: resolve
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out orenel-platform
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          repository: zenderock/orenel-platform
+          ref: ${{ needs.resolve.outputs.sha }}
+          token: ${{ secrets.ORENEL_PLATFORM_TOKEN }}
+          persist-credentials: false
+          path: platform
 
       - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
@@ -101,12 +116,18 @@ jobs:
         working-directory: platform
         run: docker build --quiet -f apps/worker/Dockerfile -t orenel-worker:ci .
 
+  # Posts the final status from a fresh runner that never ran platform code.
+  report:
+    needs: [resolve, go]
+    if: always() && needs.resolve.outputs.sha != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
       - name: Report final status to orenel-platform
-        if: always() && steps.commit.outputs.sha != ''
         env:
           GH_TOKEN: ${{ secrets.ORENEL_PLATFORM_TOKEN }}
-          SHA: ${{ steps.commit.outputs.sha }}
-          OUTCOME: ${{ job.status }}
+          SHA: ${{ needs.resolve.outputs.sha }}
+          OUTCOME: ${{ needs.go.result }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           if [ "$OUTCOME" = "success" ]; then

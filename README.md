@@ -4,6 +4,10 @@ Public CI runner for the private `zenderock/orenel-platform` monorepo. Workflows
 
 **Logs are public.** Workflows only print check results. Never echo platform source, `.env` files, tokens or customer data, and never add a step that uploads the platform checkout as an artifact. Known metadata that does appear: the checked-out commit SHA and subject line, and, if the collector fails to start, its last log lines (fixture data only).
 
+Each workflow has three jobs. `resolve` turns the requested ref into a SHA and posts a pending status without running platform code. The check job uses the token only in its checkout step (not persisted), before any platform dependency or test runs. `report` posts the final status from a fresh runner that never ran platform code, so a compromised dependency cannot read the token.
+
+Failing tools (tests, linters, type checkers) can print a few lines of the failing source around the error. That is accepted: platform source must never contain secrets, and nothing else from the checkout is printed.
+
 Third-party actions are pinned to commit SHAs because the checkout step receives a token for the private repository. The `orenel-ci/<name>` status is advisory (it is not a required check on the platform repository): before merging, confirm the status was posted for the PR's current head SHA, and give the token an expiry date.
 
 ## Setup
