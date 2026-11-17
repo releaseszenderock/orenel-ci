@@ -1,0 +1,119 @@
+# Go checks for zenderock/orenel-platform (private), run from this public repo.
+# Platform issue: https://github.com/zenderock/orenel-platform/issues/24
+# Logs are PUBLIC: steps print tool results only, never env values or sources.
+# Secret: ORENEL_PLATFORM_TOKEN (see README.md > Setup).
+
+name: orenel-platform go
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch, tag or commit SHA of zenderock/orenel-platform
+        required: true
+        default: main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: platform-go-${{ inputs.ref }}
+  cancel-in-progress: true
+
+env:
+  PLATFORM_REPO: zenderock/orenel-platform
+  STATUS_CONTEXT: orenel-ci/go
+
+jobs:
+  go:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Require the platform token
+        env:
+          TOKEN_SET: ${{ secrets.ORENEL_PLATFORM_TOKEN != '' }}
+        run: |
+          if [ "$TOKEN_SET" != "true" ]; then
+            echo "::error::Secret ORENEL_PLATFORM_TOKEN is missing. See README.md > Setup."
+            exit 1
+          fi
+
+      - name: Check out orenel-platform
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          repository: zenderock/orenel-platform
+          ref: ${{ inputs.ref }}
+          token: ${{ secrets.ORENEL_PLATFORM_TOKEN }}
+          persist-credentials: false
+          path: platform
+
+      - name: Resolve commit
+        id: commit
+        run: echo "sha=$(git -C platform rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Report pending status to orenel-platform
+        env:
+          GH_TOKEN: ${{ secrets.ORENEL_PLATFORM_TOKEN }}
+          SHA: ${{ steps.commit.outputs.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh api --silent "repos/$PLATFORM_REPO/statuses/$SHA" \
+            -f state=pending -f context="$STATUS_CONTEXT" \
+            -f description="Go checks running" -f target_url="$RUN_URL"
+
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
+        with:
+          go-version-file: platform/go.mod
+          cache-dependency-path: platform/go.sum
+
+      - name: gofmt
+        id: gofmt
+        working-directory: platform
+        run: |
+          unformatted="$(gofmt -l $(git ls-files '*.go'))"
+          if [ -n "$unformatted" ]; then echo "Unformatted files:"; echo "$unformatted"; exit 1; fi
+
+      - name: go vet
+        working-directory: platform
+        run: go vet ./...
+
+      - name: Generated code is up to date (go generate, sqlc)
+        working-directory: platform
+        run: |
+          go generate ./...
+          if [ -f sqlc.yaml ] || [ -f db/sqlc.yaml ]; then
+            cfg="$( [ -f sqlc.yaml ] && echo sqlc.yaml || echo db/sqlc.yaml )"
+            go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.31.1 diff -f "$cfg"
+          fi
+          git diff --stat --exit-code
+
+      - name: Tests (race, integration required)
+        working-directory: platform
+        env:
+          ORENEL_REQUIRE_INTEGRATION: '1'
+        run: go test -race -count=1 ./...
+
+      - name: Build API image
+        working-directory: platform
+        run: docker build --quiet -f apps/api/Dockerfile -t orenel-api:ci .
+
+      - name: Build worker image
+        working-directory: platform
+        run: docker build --quiet -f apps/worker/Dockerfile -t orenel-worker:ci .
+
+      - name: Report final status to orenel-platform
+        if: always() && steps.commit.outputs.sha != ''
+        env:
+          GH_TOKEN: ${{ secrets.ORENEL_PLATFORM_TOKEN }}
+          SHA: ${{ steps.commit.outputs.sha }}
+          OUTCOME: ${{ job.status }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ "$OUTCOME" = "success" ]; then
+            state=success; description="Go checks passed"
+          else
+            state=failure; description="Go checks failed"
+          fi
+          gh api --silent "repos/$PLATFORM_REPO/statuses/$SHA" \
+            -f state="$state" -f context="$STATUS_CONTEXT" \
+            -f description="$description" -f target_url="$RUN_URL"

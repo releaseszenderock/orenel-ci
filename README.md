@@ -18,11 +18,15 @@ Third-party actions are pinned to commit SHAs because the checkout step receives
 | Workflow | Trigger | Checks | Status context |
 | --- | --- | --- | --- |
 | `platform-infra.yml` | manual (`workflow_dispatch`, input `ref`) | `infra/scripts/verify.sh`: compose rendering, required-secret guards, no published ports, `otelcol-contrib validate` | `orenel-ci/infra` |
+| `platform-go.yml` | manual (`workflow_dispatch`, input `ref`) | gofmt, go vet, generated code up to date (`go generate`, `sqlc diff`), `go test -race` with integration tests required, api and worker image builds | `orenel-ci/go` |
+| `platform-web.yml` | manual (`workflow_dispatch`, input `ref`) | frozen install, root scripts `lint`, `typecheck`, `test`, OpenAPI lint and client regeneration (`api:lint`, `api:generate` if defined), `build`, Playwright `test:e2e`, web image build | `orenel-ci/web` |
 
 Run it from the Actions tab, or with the GitHub CLI:
 
 ```bash
-gh workflow run platform-infra.yml -R releaseszenderock/orenel-ci -f ref=<branch-or-sha>
+for wf in platform-infra platform-go platform-web; do
+  gh workflow run "$wf.yml" -R releaseszenderock/orenel-ci -f ref=<branch-or-sha>
+done
 ```
 
 `workflow_dispatch` only works once the workflow file is on this repository's default branch.
