@@ -105,6 +105,12 @@ jobs:
         working-directory: platform/apps/web
         run: pnpm exec playwright install --with-deps chromium
 
+      # The web font fallback face is metric-matched to Arial (local Arial,
+      # Liberation Sans or Helvetica). Runners ship none of them, so install
+      # the Arial-metric Liberation fonts to test what real visitors get.
+      - name: Arial-metric fallback fonts
+        run: sudo apt-get install -y --no-install-recommends fonts-liberation >/dev/null
+
       - name: End-to-end tests
         working-directory: platform
         run: pnpm run test:e2e
