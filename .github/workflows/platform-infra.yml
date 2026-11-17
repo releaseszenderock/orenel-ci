@@ -81,18 +81,23 @@ jobs:
           REQUIRE_COLLECTOR_VALIDATION: '1'
         run: infra/scripts/verify.sh
 
+      - name: Full stack smoke test (apps profile)
+        id: smoke
+        working-directory: platform
+        run: infra/scripts/smoke.sh
+
       - name: Report final status to orenel-platform
         if: always() && steps.commit.outputs.sha != ''
         env:
           GH_TOKEN: ${{ secrets.ORENEL_PLATFORM_TOKEN }}
           SHA: ${{ steps.commit.outputs.sha }}
-          OUTCOME: ${{ steps.verify.outcome }}
+          OUTCOME: ${{ job.status }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           if [ "$OUTCOME" = "success" ]; then
-            state=success; description="Compose and OTel collector checks passed"
+            state=success; description="Compose, collector and stack smoke checks passed"
           else
-            state=failure; description="Compose or OTel collector checks failed"
+            state=failure; description="Infra checks failed"
           fi
           gh api --silent "repos/$PLATFORM_REPO/statuses/$SHA" \
             -f state="$state" -f context="$STATUS_CONTEXT" \

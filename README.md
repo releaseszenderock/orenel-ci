@@ -17,7 +17,7 @@ Third-party actions are pinned to commit SHAs because the checkout step receives
 
 | Workflow | Trigger | Checks | Status context |
 | --- | --- | --- | --- |
-| `platform-infra.yml` | manual (`workflow_dispatch`, input `ref`) | `infra/scripts/verify.sh`: compose rendering, required-secret guards, no published ports, `otelcol-contrib validate` | `orenel-ci/infra` |
+| `platform-infra.yml` | manual (`workflow_dispatch`, input `ref`) | `infra/scripts/verify.sh` (compose rendering, required-secret guards, no published ports, `otelcol-contrib validate`, redaction fixture) and `infra/scripts/smoke.sh` (full stack with apps: migrate, api readiness and contract, web SSR) | `orenel-ci/infra` |
 | `platform-go.yml` | manual (`workflow_dispatch`, input `ref`) | gofmt, go vet, generated code up to date (`go generate`, `sqlc diff`), `go test -race` with integration tests required, api and worker image builds | `orenel-ci/go` |
 | `platform-web.yml` | manual (`workflow_dispatch`, input `ref`) | frozen install, root scripts `lint`, `typecheck`, `test`, OpenAPI lint and client regeneration (`api:lint`, `api:generate` if defined), `build`, Playwright `test:e2e`, web image build | `orenel-ci/web` |
 
