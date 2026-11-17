@@ -37,8 +37,17 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
+      - name: Require the platform token
+        env:
+          TOKEN_SET: ${{ secrets.ORENEL_PLATFORM_TOKEN != '' }}
+        run: |
+          if [ "$TOKEN_SET" != "true" ]; then
+            echo "::error::Secret ORENEL_PLATFORM_TOKEN is missing. See README.md > Setup."
+            exit 1
+          fi
+
       - name: Check out orenel-platform
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: zenderock/orenel-platform
           ref: ${{ inputs.ref }}
@@ -61,7 +70,7 @@ jobs:
             -f description="Compose and OTel collector checks running" \
             -f target_url="$RUN_URL"
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: '22'
 
