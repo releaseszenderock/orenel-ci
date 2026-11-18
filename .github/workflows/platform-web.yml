@@ -122,6 +122,14 @@ jobs:
         run: |
           if node -e 'process.exit(require("./package.json").scripts?.["check:gallery-excluded"] ? 0 : 1)'; then pnpm run check:gallery-excluded; else echo "no gallery check in this revision"; fi
 
+      # Every stylesheet, modulepreload and script the served HTML links must
+      # answer 200: a server/client CSS hash mismatch otherwise ships an
+      # unstyled first paint (56b, N1).
+      - name: Served HTML assets all answer 200
+        working-directory: platform/apps/web
+        run: |
+          if node -e 'process.exit(require("./package.json").scripts?.["check:served-assets"] ? 0 : 1)'; then pnpm run check:served-assets; else echo "no served-assets check in this revision"; fi
+
       - name: Playwright browsers
         working-directory: platform/apps/web
         run: pnpm exec playwright install --with-deps chromium
