@@ -2,7 +2,13 @@
 
 Public CI runner for the private `zenderock/orenel-platform` monorepo. Workflows here check out the platform at a given ref, run its checks and report a commit status (`orenel-ci/<name>`) back on the platform commit, so pull requests there show the result.
 
-**Logs are public.** Workflows only print check results. Never echo platform source, `.env` files, tokens or customer data, and never add a step that uploads the platform checkout as an artifact.
+**Logs are public.** Workflows only print check results. Never echo platform source, `.env` files, tokens or customer data, and never add a step that uploads the platform checkout as an artifact. Known metadata that does appear: the checked-out commit SHA and subject line, and, if the collector fails to start, its last log lines (fixture data only).
+
+Each workflow has three jobs. `resolve` turns the requested ref into a SHA and posts a pending status without running platform code. The check job uses the token only in its checkout step (not persisted), before any platform dependency or test runs. `report` posts the final status from a fresh runner that never ran platform code, so a compromised dependency cannot read the token.
+
+Failing tools (tests, linters, type checkers) can print a few lines of the failing source around the error. That is accepted: platform source must never contain secrets, and nothing else from the checkout is printed.
+
+Third-party actions are pinned to commit SHAs because the checkout step receives a token for the private repository. The `orenel-ci/<name>` status is advisory (it is not a required check on the platform repository): before merging, confirm the status was posted for the PR's current head SHA, and give the token an expiry date.
 
 ## Setup
 
@@ -15,12 +21,17 @@ Public CI runner for the private `zenderock/orenel-platform` monorepo. Workflows
 
 | Workflow | Trigger | Checks | Status context |
 | --- | --- | --- | --- |
-| `platform-infra.yml` | manual (`workflow_dispatch`, input `ref`) | `infra/scripts/verify.sh`: compose rendering, required-secret guards, no published ports, `otelcol-contrib validate` | `orenel-ci/infra` |
+| `platform-infra.yml` | manual (`workflow_dispatch`, input `ref`) | `infra/scripts/verify.sh` (compose rendering, required-secret guards, no published ports, `otelcol-contrib validate`, redaction fixture) and `infra/scripts/smoke.sh` (full stack with apps: migrate, api readiness and contract, web SSR) | `orenel-ci/infra` |
+| `platform-go.yml` | manual (`workflow_dispatch`, input `ref`) | gofmt, go vet, generated code up to date (`go generate`, `sqlc diff`), `go test -race` with integration tests required, api and worker image builds | `orenel-ci/go` |
+| `platform-web.yml` | manual (`workflow_dispatch`, input `ref`) | frozen install, root scripts `lint`, `typecheck`, `test`, OpenAPI lint and client regeneration (`api:lint`, `api:generate` if defined), `build`, dev gallery excluded from the production build (`check:gallery-excluded` if defined), Playwright `test:e2e`, web image build | `orenel-ci/web` |
+| `platform-real-stack.yml` | manual (`workflow_dispatch`, input `ref`) | real API and worker (`-tags devstack`, fake providers only) against throwaway PostgreSQL and Redis containers with passwords generated per run, then Playwright `test:e2e:real` at 390 and 1440 px; on failure, a jq-whitelisted tail of api/worker logs | `orenel-ci/real-stack` |
 
 Run it from the Actions tab, or with the GitHub CLI:
 
 ```bash
-gh workflow run platform-infra.yml -R releaseszenderock/orenel-ci -f ref=<branch-or-sha>
+for wf in platform-infra platform-go platform-web platform-real-stack; do
+  gh workflow run "$wf.yml" -R releaseszenderock/orenel-ci -f ref=<branch-or-sha>
+done
 ```
 
 `workflow_dispatch` only works once the workflow file is on this repository's default branch.
