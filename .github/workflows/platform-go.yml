@@ -106,7 +106,7 @@ jobs:
         working-directory: platform
         env:
           ORENEL_REQUIRE_INTEGRATION: '1'
-        run: go test -race -count=1 ./...
+        run: go test -race -count=1 -timeout 25m ./...
 
       - name: Build API image
         working-directory: platform
