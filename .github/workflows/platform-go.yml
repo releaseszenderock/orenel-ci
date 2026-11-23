@@ -65,7 +65,9 @@ jobs:
   go:
     needs: resolve
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # The race and integration tests alone take 22 to 28 minutes on a loaded runner since lot 5b,
+    # then the API and worker images build: 30 cut the image build of a green run.
+    timeout-minutes: 45
     steps:
       - name: Check out orenel-platform
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
