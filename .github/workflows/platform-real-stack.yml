@@ -70,7 +70,8 @@ jobs:
   real-stack:
     needs: resolve
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # The suite passed 472 tests in 29 minutes before the studio specs (lot 5a) were reached.
+    timeout-minutes: 50
     steps:
       - name: Check out orenel-platform
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
