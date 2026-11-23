@@ -81,6 +81,17 @@ jobs:
           go-version-file: platform/go.mod
           cache-dependency-path: platform/go.sum
 
+      # Node and pnpm for the real renderer the carousel tests start (apps/renderer).
+      - uses: pnpm/action-setup@9bbca1e9dc2902adb87e8780fe5c98796985a62d # v6.1.1
+        with:
+          package_json_file: platform/package.json
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version-file: platform/.node-version
+          cache: pnpm
+          cache-dependency-path: platform/pnpm-lock.yaml
+
       - name: gofmt
         id: gofmt
         working-directory: platform
@@ -102,10 +113,15 @@ jobs:
           fi
           git diff --stat --exit-code
 
-      - name: Tests (race, integration required)
+      - name: Install the renderer (frozen lockfile)
+        working-directory: platform
+        run: pnpm install --frozen-lockfile --filter 'renderer...'
+
+      - name: Tests (race, integration and real renderer required)
         working-directory: platform
         env:
           ORENEL_REQUIRE_INTEGRATION: '1'
+          ORENEL_TEST_RENDERER: '1'
         run: go test -race -count=1 -timeout 25m ./...
 
       - name: Build API image
