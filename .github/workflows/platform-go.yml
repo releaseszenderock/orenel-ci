@@ -66,8 +66,11 @@ jobs:
     needs: resolve
     runs-on: ubuntu-latest
     # The race and integration tests alone take 22 to 28 minutes on a loaded runner since lot 5b,
-    # then the API and worker images build: 30 cut the image build of a green run.
-    timeout-minutes: 45
+    # then the API and worker images build: 30 cut the image build of a green run. Since lot 6,
+    # internal/httpapi alone takes 19 to 25+ minutes under -race, so the package timeout is 40
+    # minutes and the job has room for the image builds after it. Splitting or parallelising
+    # httpapi is tracked on the platform side; this is headroom, not a target.
+    timeout-minutes: 60
     steps:
       - name: Check out orenel-platform
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
@@ -124,7 +127,7 @@ jobs:
         env:
           ORENEL_REQUIRE_INTEGRATION: '1'
           ORENEL_TEST_RENDERER: '1'
-        run: go test -race -count=1 -timeout 25m ./...
+        run: go test -race -count=1 -timeout 40m ./...
 
       - name: Build API image
         working-directory: platform
